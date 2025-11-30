@@ -22,3 +22,8 @@ yara_rules/remote/
 # OS
 .DS_Store
 Thumbs.db
+
+/frontend/node_modules/
+/frontend/dist/
+/frontend/out/
+/frontend/release/
