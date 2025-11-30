@@ -1,2 +1,2 @@
-# pe_static_analyzer
+# PE STATIC ANALYZER
 Lucrare Licenta
