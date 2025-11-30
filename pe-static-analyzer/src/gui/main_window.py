@@ -1,12 +1,35 @@
-"""
+﻿"""
 PE Static Analyzer - GUI Interface
 PySide6/PyQt5 desktop UI for interacting with the analysis engine.
 """
 
 import sys
 import json
+import base64
+import os
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+
+
+def _bootstrap_qt():
+    """Ensure PySide6 DLL paths are visible on Windows before import."""
+    qt_dir = Path(sys.prefix) / "Lib" / "site-packages" / "PySide6"
+    if qt_dir.exists():
+        try:
+            os.add_dll_directory(str(qt_dir))
+            os.environ["PATH"] = str(qt_dir) + os.pathsep + os.environ.get("PATH", "")
+            plugins = qt_dir / "plugins"
+            if plugins.exists():
+                os.environ["QT_PLUGIN_PATH"] = str(plugins)
+                os.environ["PATH"] = str(plugins) + os.pathsep + os.environ["PATH"]
+            bin_dir = qt_dir / "bin"
+            if bin_dir.exists():
+                os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
+        except Exception:
+            pass
+
+
+_bootstrap_qt()
 
 try:
     from PySide6.QtWidgets import (
@@ -33,16 +56,20 @@ try:
         QFormLayout,
         QGraphicsDropShadowEffect,
         QGraphicsOpacityEffect,
+        QDialog,
+        QSplashScreen,
     )
-    from PySide6.QtCore import Qt, QThread, Signal, QEasingCurve, QPropertyAnimation
+    from PySide6.QtCore import Qt, QThread, Signal, QEasingCurve, QPropertyAnimation, QTimer
     from PySide6.QtGui import QFont, QPixmap
-except ImportError:
+except Exception as e:
+    print(f"PySide6 import failed: {e}")
     try:
         from PyQt5.QtWidgets import *  # type: ignore
         from PyQt5.QtCore import *  # type: ignore
         from PyQt5.QtGui import *  # type: ignore
         print("Using PyQt5 backend")
-    except ImportError:
+    except Exception as e2:
+        print(f"PyQt5 import failed: {e2}")
         print("Install PySide6: pip install PySide6")
         sys.exit(1)
 
@@ -50,6 +77,7 @@ from src.core.analyzer import PEStaticAnalyzer, AnalysisResult
 from src.modules import create_default_modules
 from src.database.repository import AnalysisRepository
 from src.reporting import report_generator
+from src.gui.style import BASE_QSS
 
 
 class AnalyzerThread(QThread):
@@ -175,7 +203,17 @@ class PEAnalyzerGUI(QMainWindow):
 
         self.findings_view = QTextEdit()
         self.findings_view.setReadOnly(True)
-        self.tabs.addTab(self.findings_view, "Findings")
+        self.btn_charts = QPushButton("Grafice detaliate")
+        self.btn_charts.clicked.connect(self._show_chart_dialog)
+        findings_container = QWidget()
+        findings_layout = QVBoxLayout()
+        bar = QHBoxLayout()
+        bar.addWidget(self.btn_charts)
+        bar.addStretch()
+        findings_layout.addLayout(bar)
+        findings_layout.addWidget(self.findings_view)
+        findings_container.setLayout(findings_layout)
+        self.tabs.addTab(findings_container, "Findings")
 
         self.anomalies_table = QTableWidget()
         self.tabs.addTab(self.anomalies_table, "Anomalii")
@@ -258,36 +296,7 @@ class PEAnalyzerGUI(QMainWindow):
         # Animatiile de tab au fost dezactivate pentru stabilitate
 
     def _apply_theme(self):
-        # Gradient-inspired dark theme
-        self.setStyleSheet(
-            """
-            QMainWindow { background-color: #0b1021; color: #e2e8f0; }
-            QLabel { color: #e2e8f0; }
-            QTextEdit, QTableWidget, QTreeWidget { background: #0c142a; color: #e2e8f0; border: 1px solid #1f2937; }
-            QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563eb, stop:1 #7c3aed); color: #f8fafc; padding: 8px 14px; border-radius: 8px; font-weight: 600; }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #6d28d9); transform: scale(1.01); }
-            QPushButton:pressed { background: #0f172a; border: 1px solid #1d4ed8; }
-            QPushButton:disabled { background: #334155; color: #cbd5e1; }
-            QTabWidget::pane { border: 1px solid #1f2937; }
-            QTabBar::tab { padding: 8px 12px; background: #111827; color: #e2e8f0; border: 1px solid #1f2937; border-bottom: none; }
-            QTabBar::tab:selected { background: #1f2937; }
-            QTabBar::tab:hover { background: #162035; }
-            QHeaderView::section { background: #1f2937; color: #e2e8f0; border: none; padding: 4px; }
-            QProgressBar { background: #1f2937; color: #e2e8f0; border: 1px solid #1f2937; }
-            QProgressBar::chunk { background: #22c55e; }
-            #ChipPrimary, #ChipNeutral, #ChipSecondary { padding: 6px 10px; border-radius: 14px; font-weight: 700; }
-            #ChipPrimary { background: #172554; color: #a5b4fc; }
-            #ChipSecondary { background: #0b3d2c; color: #6ee7b7; }
-            #ChipNeutral { background: #1f2937; color: #e2e8f0; }
-            QTextEdit#PseudoView, QTextEdit#CfgView { font-family: Consolas, monospace; font-size: 12px; }
-            QTextEdit { selection-background-color: #1d4ed8; }
-            QScrollBar:vertical { background: #0c142a; width: 10px; }
-            QScrollBar::handle:vertical { background: #334155; border-radius: 4px; }
-            QScrollBar::handle:vertical:hover { background: #475569; }
-            QTreeWidget { border: 1px solid #1f2937; }
-            QTreeWidget::item:selected { background: #1d4ed8; color: #f8fafc; }
-            """
-        )
+        self.setStyleSheet(BASE_QSS)
 
     def _apply_shadows(self):
         # soft shadows pentru panouri (fara blur)
@@ -344,10 +353,18 @@ class PEAnalyzerGUI(QMainWindow):
         form.addRow("Bonus semnatura valida (scade scor)", self.spin_signed_bonus)
         layout.addLayout(form)
 
-        apply_btn = QPushButton("Aplică ponderi")
+        btn_row = QHBoxLayout()
+        apply_btn = QPushButton("Aplica ponderi")
         apply_btn.setStyleSheet("padding:10px 14px;border-radius:10px;background:#2563eb;")
         apply_btn.clicked.connect(self._apply_rules_lab)
-        layout.addWidget(apply_btn)
+        save_btn = QPushButton("Salveaza profil")
+        save_btn.clicked.connect(self._save_rules_profile)
+        load_btn = QPushButton("Incarca profil")
+        load_btn.clicked.connect(self._load_rules_profile)
+        btn_row.addWidget(apply_btn)
+        btn_row.addWidget(save_btn)
+        btn_row.addWidget(load_btn)
+        layout.addLayout(btn_row)
         layout.addStretch()
 
     def _apply_rules_lab(self):
@@ -363,8 +380,8 @@ class PEAnalyzerGUI(QMainWindow):
                 "signed_bonus": self.spin_signed_bonus.value(),
             }
         )
-        self.status.showMessage("Ponderi actualizate - rulează o nouă analiză pentru efect")
-        QMessageBox.information(self, "Rules Lab", "Ponderile au fost aplicate. Rulează din nou analiza pentru a vedea efectul.")
+        self.status.showMessage("Ponderi actualizate - ruleaza o noua analiza pentru efect")
+        QMessageBox.information(self, "Rules Lab", "Ponderile au fost aplicate. Ruleaza din nou analiza pentru a vedea efectul.")
 
     # --- Event handlers ---
     def _apply_profile(self, idx: int):
@@ -382,6 +399,37 @@ class PEAnalyzerGUI(QMainWindow):
         enabled = [m for m in self.analyzer.plugin_manager.modules.values() if m.enabled]
         self.modules_chip.setText(f"Modules: {len(enabled)}/{len(self.analyzer.plugin_manager.modules)}")
         self.status.showMessage(f"Profil aplicat: {profile}")
+
+    def _save_rules_profile(self):
+        cfg_path = Path("config/config.yaml")
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {"weights": self.analyzer.score_weights}
+        try:
+            cfg_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            QMessageBox.information(self, "Rules Lab", f"Profil salvat: {cfg_path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Rules Lab", f"Eroare la salvare: {e}")
+
+    def _load_rules_profile(self):
+        cfg_path = Path("config/config.yaml")
+        if not cfg_path.exists():
+            QMessageBox.information(self, "Rules Lab", "Nu exista profil salvat.")
+            return
+        try:
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            weights = data.get("weights", {})
+            self.analyzer.score_weights.update(weights)
+            self.spin_yara.setValue(int(weights.get("yara_match", self.spin_yara.value())))
+            self.spin_yara_max.setValue(int(weights.get("yara_max", self.spin_yara_max.value())))
+            self.spin_packer.setValue(int(weights.get("packer", self.spin_packer.value())))
+            self.spin_entropy_hi.setValue(int(weights.get("entropy_high", self.spin_entropy_hi.value())))
+            self.spin_entropy_med.setValue(int(weights.get("entropy_medium", self.spin_entropy_med.value())))
+            self.spin_heur_flag.setValue(int(weights.get("heuristic_flag", self.spin_heur_flag.value())))
+            self.spin_heur_max.setValue(int(weights.get("heuristic_max", self.spin_heur_max.value())))
+            self.spin_signed_bonus.setValue(int(weights.get("signed_bonus", self.spin_signed_bonus.value())))
+            QMessageBox.information(self, "Rules Lab", "Profil incarcat.")
+        except Exception as e:
+            QMessageBox.warning(self, "Rules Lab", f"Eroare la incarcare: {e}")
 
     def select_file(self):
         file, _ = QFileDialog.getOpenFileName(
@@ -439,6 +487,15 @@ class PEAnalyzerGUI(QMainWindow):
             self.status.showMessage("Analiza salvata in baza de date")
         except Exception as e:
             self.status.showMessage(f"Nu am putut salva in DB: {e}")
+        # Genereaza raport PDF automat
+        try:
+            reports_dir = Path("reports")
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            fname = reports_dir / f"report_{Path(result.file_path).stem}.pdf"
+            report_generator.generate_pdf_report(result, str(fname))
+            self.status.showMessage(f"Raport PDF generat: {fname}")
+        except Exception as e:
+            self.status.showMessage(f"PDF auto esuat: {e}")
 
     def export_report(self):
         """Save current analysis as JSON."""
@@ -552,6 +609,7 @@ class PEAnalyzerGUI(QMainWindow):
             charts = report_generator._chart_images(r)  # base64 imgs
         except Exception:
             charts = {}
+        breakdown = r.scoring_breakdown or []
         cards_html = f"""
         <div style="display:flex;gap:12px;flex-wrap:wrap;font-family:'Segoe UI',sans-serif;">
           <div style="flex:1;min-width:200px;background:#0f172a;padding:14px;border-radius:12px;border:1px solid #1f2937;">
@@ -571,12 +629,18 @@ class PEAnalyzerGUI(QMainWindow):
         charts_html = "<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;'>"
         if charts.get("entropy"):
             charts_html += f"<div style='flex:1;min-width:300px;'><h4 style='margin:4px 0;'>Entropie</h4><img src='data:image/png;base64,{charts['entropy']}' style='max-width:100%;border:1px solid #1f2937;border-radius:8px;'/></div>"
-        if charts.get("vt"):
+        vt_stats = r.vt_report.get("stats", {}) if r.vt_report else {}
+        if charts.get("vt") and len(vt_stats) <= 6:
             charts_html += f"<div style='flex:0 0 260px;'><h4 style='margin:4px 0;'>VirusTotal</h4><img src='data:image/png;base64,{charts['vt']}' style='max-width:100%;border:1px solid #1f2937;border-radius:8px;'/></div>"
+        elif vt_stats:
+            charts_html += "<div style='flex:0 0 260px;'><h4 style='margin:4px 0;'>VirusTotal</h4><ul>"
+            charts_html += "".join(f"<li>{k}: {v}</li>" for k, v in vt_stats.items())
+            charts_html += "</ul></div>"
         charts_html += "</div>"
+        breakdown_html = "<h4 style='margin-top:12px;'>Why risk?</h4><ul>" + "".join(f"<li>{b}</li>" for b in breakdown) + "</ul>"
         lists_html = "<h4 style='margin-top:12px;'>Heuristic flags</h4><ul>" + "".join(f"<li>{f}</li>" for f in flags) + "</ul>"
         lists_html += "<h4>YARA</h4><ul>" + "".join(f"<li>{f}</li>" for f in yara_rules) + "</ul>"
-        self.findings_view.setHtml(cards_html + charts_html + lists_html)
+        self.findings_view.setHtml(cards_html + charts_html + breakdown_html + lists_html)
 
     def _populate_hashes(self, hashes: Dict[str, Any]):
         self.hash_table.clear()
@@ -867,7 +931,7 @@ class PEAnalyzerGUI(QMainWindow):
                 else:
                     self.graphviz_label.setText("Nu am putut incarca imaginea generata.")
             else:
-                self.graphviz_label.setText("Fișier PNG nu a fost generat.")
+                self.graphviz_label.setText("FiČ™ier PNG nu a fost generat.")
         except Exception as e:
             self.graphviz_label.setText(f"Eroare graphviz: {e}")
 
@@ -878,6 +942,37 @@ class PEAnalyzerGUI(QMainWindow):
         vh = self.graphviz_area.viewport().height()
         pix = self._graph_pixmap.scaled(max(vw - 20, 200), max(vh - 20, 200), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.graphviz_label.setPixmap(pix)
+
+    def _show_chart_dialog(self):
+        if not self.current_result:
+            QMessageBox.information(self, "Grafice", "Nu exista analiza curenta.")
+            return
+        try:
+            charts = report_generator._chart_images(self.current_result)
+        except Exception as e:
+            QMessageBox.warning(self, "Grafice", f"Nu pot genera grafice: {e}")
+            return
+        if not charts:
+            QMessageBox.information(self, "Grafice", "Nu exista grafice disponibile.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Grafice detaliate")
+        layout = QVBoxLayout()
+        dlg.setLayout(layout)
+        for title, img_b64 in charts.items():
+            lbl = QLabel(title.capitalize())
+            lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            layout.addWidget(lbl)
+            pix = QPixmap()
+            try:
+                pix.loadFromData(base64.b64decode(img_b64))
+            except Exception:
+                continue
+            if not pix.isNull():
+                view = QLabel()
+                view.setPixmap(pix.scaled(900, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                layout.addWidget(view)
+        dlg.exec()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -940,10 +1035,18 @@ class PEAnalyzerGUI(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    # Splash screen pentru pornire mai smooth
+    splash = QSplashScreen(QPixmap(), Qt.WindowStaysOnTopHint)
+    splash.showMessage("PE Static Analyzer se incarca...", Qt.AlignCenter | Qt.AlignBottom, Qt.white)
+    splash.show()
+    app.processEvents()
+
     w = PEAnalyzerGUI()
     w.show()
+    splash.finish(w)
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     main()
+

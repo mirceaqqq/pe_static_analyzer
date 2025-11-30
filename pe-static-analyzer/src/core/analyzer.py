@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
+from src.core.config import load_config
 
 # Configure logging
 logging.basicConfig(
@@ -41,7 +42,7 @@ class AnalysisResult:
     disassembly: List[Dict[str, Any]] = field(default_factory=list)
     pseudocode: List[Dict[str, Any]] = field(default_factory=list)
     func_graphs: List[Dict[str, Any]] = field(default_factory=list)
-    pseudocode: List[Dict[str, Any]] = field(default_factory=list)
+    scoring_breakdown: List[str] = field(default_factory=list)
 
     # Detections
     yara_matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -78,7 +79,7 @@ class AnalysisResult:
             "pseudocode": self.pseudocode,
             "func_graphs": self.func_graphs,
             "anomalies": self.anomalies,
-            "pseudocode": self.pseudocode,
+            "scoring_breakdown": self.scoring_breakdown,
             "yara_matches": self.yara_matches,
             "packer_detected": self.packer_detected,
             "iocs": self.iocs,
@@ -103,7 +104,7 @@ class AnalyzerModule:
         raise NotImplementedError("Modulul trebuie sa implementeze analiza.")
 
     def get_metadata(self) -> Dict[str, Any]:
-        return {"name": self.name, "enabled": self.enabled, "version": "1.0.0"}
+        return {"name": self.name, "enabled": self.enabled, "version": "1.1.0"}
 
 
 class PluginManager:
@@ -147,7 +148,7 @@ class PEStaticAnalyzer:
     """Main orchestrator for PE static analysis."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
+        self.config = config or load_config()
         self.plugin_manager = PluginManager()
         self.logger = logging.getLogger("PEStaticAnalyzer")
 
@@ -245,24 +246,29 @@ class PEStaticAnalyzer:
 
     def _calculate_suspicion_score(self, result: AnalysisResult) -> float:
         score = 0.0
+        breakdown: List[str] = []
         w = self.score_weights
 
         # YARA
         if result.yara_matches:
             yara_score = min(len(result.yara_matches) * w["yara_match"], w["yara_max"])
             score += yara_score
+            breakdown.append(f"YARA: +{yara_score}")
 
         # Packer
         if result.packer_detected:
             score += w["packer"]
+            breakdown.append(f"Packer: +{w['packer']}")
 
         # Entropy
         if result.entropy_data:
             avg_entropy = sum(result.entropy_data.values()) / len(result.entropy_data)
             if avg_entropy > 7.0:
                 score += w["entropy_high"]
+                breakdown.append(f"Entropie ridicata: +{w['entropy_high']}")
             elif avg_entropy > 6.5:
                 score += w["entropy_medium"]
+                breakdown.append(f"Entropie medie: +{w['entropy_medium']}")
 
         # Heuristic flags
         if result.heuristic_flags:
@@ -270,6 +276,7 @@ class PEStaticAnalyzer:
                 len(result.heuristic_flags) * w["heuristic_flag"], w["heuristic_max"]
             )
             score += heuristic_score
+            breakdown.append(f"Heuristici: +{heuristic_score}")
 
         # VirusTotal
         if result.vt_report:
@@ -277,11 +284,15 @@ class PEStaticAnalyzer:
             malicious = stats.get("malicious", 0)
             if malicious > 0:
                 score += w["vt_malicious"]
+                breakdown.append(f"VT malicious: +{w['vt_malicious']}")
 
         # Bonus pentru executabile semnate și verificate: reduce scorul
         if result.signatures and result.signatures.get("verified"):
-            score = max(0.0, score - w.get("signed_bonus", 0))
+            bonus = w.get("signed_bonus", 0)
+            score = max(0.0, score - bonus)
+            breakdown.append(f"Semnatura valida: -{bonus}")
 
+        result.scoring_breakdown = breakdown
         return min(score, 100.0)
 
     def _classify_risk(self, score: float) -> str:

@@ -8,11 +8,13 @@ class PackerDetector(AnalyzerModule):
     """
     
     PACKER_SIGNATURES = {
-        'UPX': [b'UPX0', b'UPX1'],
+        'UPX': [b'UPX0', b'UPX1', b'UPX2'],
         'ASPack': [b'aspack'],
-        'PECompact': [b'PECompact2'],
-        'Themida': [b'.themida'],
-        'VMProtect': [b'VMProtect']
+        'PECompact': [b'PECompact2', b'PEC2'],
+        'Themida': [b'.themida', b'themida'],
+        'VMProtect': [b'VMProtect', b'VMProtectz'],
+        'MPRESS': [b'MPRESS1', b'MPRESS2'],
+        'FSG': [b'FSG!'],
     }
     
     def __init__(self):
@@ -40,6 +42,11 @@ class PackerDetector(AnalyzerModule):
                 result.heuristic_flags.append("POSSIBLE_PACKER_HIGH_ENTROPY")
             else:
                 result.packer_detected = result.packer_detected or "NONE_DETECTED"
+            for sec in getattr(result, "sections", []):
+                name = sec.get("name", "").lower()
+                if name in [".upx", "upx0", "upx1"]:
+                    result.packer_detected = "UPX"
+                    result.heuristic_flags.append("PACKER_DETECTED:UPX_SECTION")
         
         except Exception as e:
             self.logger.error(f"Eroare detecție packer: {e}")
