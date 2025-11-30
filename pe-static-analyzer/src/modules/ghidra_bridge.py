@@ -23,6 +23,7 @@ class GhidraBridge(AnalyzerModule):
         self.script_path = Path("ghidra_scripts") / "ExportDecompile.py"
         self.work_dir = Path("temp") / "ghidra_work"
         self.output_json = self.work_dir / "ghidra_export.json"
+        self.cache_dir = Path("temp") / "ghidra_cache"
 
     def analyze(self, file_path: Path, result: AnalysisResult) -> None:
         if not self.ghidra_home:
@@ -35,6 +36,19 @@ class GhidraBridge(AnalyzerModule):
             return
 
         self.work_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        sha = result.file_hash.get("sha256") if result.file_hash else None
+        cache_path = self.cache_dir / f"{sha}.json" if sha else None
+        if cache_path and cache_path.exists():
+            try:
+                data: Dict[str, Any] = json.loads(cache_path.read_text(encoding="utf-8"))
+                result.pseudocode = data.get("functions", [])
+                result.func_graphs = data.get("graphs", [])
+                self.logger.info("Ghidra cache hit")
+                return
+            except Exception:
+                self.logger.warning("Ghidra cache corupt, re-rulare.")
 
         # Pregătește comanda analyzeHeadless
         project_dir = self.work_dir
@@ -83,6 +97,11 @@ class GhidraBridge(AnalyzerModule):
             data: Dict[str, Any] = json.loads(self.output_json.read_text(encoding="utf-8"))
             result.pseudocode = data.get("functions", [])
             result.func_graphs = data.get("graphs", [])
+            if cache_path:
+                try:
+                    cache_path.write_text(json.dumps(data), encoding="utf-8")
+                except Exception:
+                    pass
             self.logger.info(
                 "Ghidra export: %d functii, %d grafuri",
                 len(result.pseudocode),

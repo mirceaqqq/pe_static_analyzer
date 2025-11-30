@@ -1,8 +1,12 @@
-rule Example_Rule {
+rule Suspicious_Process_Injection {
     meta:
-        description = "Example YARA rule"
+        description = "Detecteaza pattern-uri de process injection"
+        author = "Codex"
     strings:
-        $a = "test"
+        $a = "OpenProcess" ascii
+        $b = "VirtualAllocEx" ascii
+        $c = "WriteProcessMemory" ascii
+        $d = "CreateRemoteThread" ascii
     condition:
-        $a
+        2 of ($a,$b,$c,$d)
 }

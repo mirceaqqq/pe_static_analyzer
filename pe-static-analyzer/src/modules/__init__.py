@@ -12,6 +12,8 @@ from .resource_analyzer import ResourceAnalyzer
 from .disassembler import DisassemblerModule
 from .pseudo_decompiler import PseudoDecompiler
 from .ghidra_bridge import GhidraBridge
+from .osint_lookup import OSINTLookup
+from .anomaly_detector import AnomalyDetector
 
 
 def create_default_modules():
@@ -31,4 +33,6 @@ def create_default_modules():
         DisassemblerModule(),
         PseudoDecompiler(),
         GhidraBridge(),
+        OSINTLookup(),
+        AnomalyDetector(),
     ]

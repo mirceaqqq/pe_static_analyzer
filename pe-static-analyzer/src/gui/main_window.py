@@ -29,8 +29,12 @@ try:
         QTreeWidgetItem,
         QComboBox,
         QScrollArea,
+        QSpinBox,
+        QFormLayout,
+        QGraphicsDropShadowEffect,
+        QGraphicsOpacityEffect,
     )
-    from PySide6.QtCore import Qt, QThread, Signal
+    from PySide6.QtCore import Qt, QThread, Signal, QEasingCurve, QPropertyAnimation
     from PySide6.QtGui import QFont, QPixmap
 except ImportError:
     try:
@@ -45,6 +49,7 @@ except ImportError:
 from src.core.analyzer import PEStaticAnalyzer, AnalysisResult
 from src.modules import create_default_modules
 from src.database.repository import AnalysisRepository
+from src.reporting import report_generator
 
 
 class AnalyzerThread(QThread):
@@ -95,7 +100,10 @@ class PEAnalyzerGUI(QMainWindow):
         central.setLayout(layout)
 
         # Header
-        header = QHBoxLayout()
+        header_frame = QWidget()
+        header_frame.setObjectName("GlassPanel")
+        header = QHBoxLayout(header_frame)
+        header.setContentsMargins(12, 8, 12, 8)
         self.title = QLabel("PE Static Analyzer")
         self.title.setFont(QFont("Segoe UI", 20, QFont.Bold))
         self.subtitle = QLabel("Drag & drop un executabil sau alege cu Select")
@@ -121,10 +129,13 @@ class PEAnalyzerGUI(QMainWindow):
         header.addLayout(title_box)
         header.addStretch()
         header.addLayout(chip_box)
-        layout.addLayout(header)
+        layout.addWidget(header_frame)
 
         # Toolbar
-        toolbar = QHBoxLayout()
+        toolbar_frame = QWidget()
+        toolbar_frame.setObjectName("GlassPanel")
+        toolbar = QHBoxLayout(toolbar_frame)
+        toolbar.setContentsMargins(12, 8, 12, 8)
         self.profile_combo = QComboBox()
         self.profile_combo.addItems(["Complet", "Rapid (fara VT/YARA)", "Offline (fara VT)"])
         self.profile_combo.currentIndexChanged.connect(self._apply_profile)
@@ -148,7 +159,7 @@ class PEAnalyzerGUI(QMainWindow):
         for b in [self.btn_select, self.btn_analyze, self.btn_export, self.btn_export_html, self.btn_clear]:
             toolbar.addWidget(b)
         toolbar.addStretch()
-        layout.addLayout(toolbar)
+        layout.addWidget(toolbar_frame)
 
         # Main splitter: top info + tabs
         splitter = QSplitter(Qt.Vertical)
@@ -161,6 +172,13 @@ class PEAnalyzerGUI(QMainWindow):
 
         self.tabs = QTabWidget()
         splitter.addWidget(self.tabs)
+
+        self.findings_view = QTextEdit()
+        self.findings_view.setReadOnly(True)
+        self.tabs.addTab(self.findings_view, "Findings")
+
+        self.anomalies_table = QTableWidget()
+        self.tabs.addTab(self.anomalies_table, "Anomalii")
 
         self.overview = QTextEdit(); self.overview.setReadOnly(True)
         self.hash_table = QTableWidget()
@@ -219,6 +237,9 @@ class PEAnalyzerGUI(QMainWindow):
 
         pseudo_layout.addWidget(gh_split)
         self.tabs.addTab(pseudo_tab, "Ghidra View")
+        self.rules_tab = QWidget()
+        self._build_rules_lab()
+        self.tabs.addTab(self.rules_tab, "Rules Lab")
         self.tabs.addTab(self.detections, "Detectii")
         self.tabs.addTab(self.timeline, "Timeline")
         self.tabs.addTab(self.errors_tab, "Erori")
@@ -233,6 +254,8 @@ class PEAnalyzerGUI(QMainWindow):
         self.status.showMessage("Pregatit")
 
         self._reset_tables()
+        self._apply_shadows()
+        # Animatiile de tab au fost dezactivate pentru stabilitate
 
     def _apply_theme(self):
         # Gradient-inspired dark theme
@@ -242,11 +265,13 @@ class PEAnalyzerGUI(QMainWindow):
             QLabel { color: #e2e8f0; }
             QTextEdit, QTableWidget, QTreeWidget { background: #0c142a; color: #e2e8f0; border: 1px solid #1f2937; }
             QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563eb, stop:1 #7c3aed); color: #f8fafc; padding: 8px 14px; border-radius: 8px; font-weight: 600; }
-            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #6d28d9); }
+            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #6d28d9); transform: scale(1.01); }
+            QPushButton:pressed { background: #0f172a; border: 1px solid #1d4ed8; }
             QPushButton:disabled { background: #334155; color: #cbd5e1; }
             QTabWidget::pane { border: 1px solid #1f2937; }
             QTabBar::tab { padding: 8px 12px; background: #111827; color: #e2e8f0; border: 1px solid #1f2937; border-bottom: none; }
             QTabBar::tab:selected { background: #1f2937; }
+            QTabBar::tab:hover { background: #162035; }
             QHeaderView::section { background: #1f2937; color: #e2e8f0; border: none; padding: 4px; }
             QProgressBar { background: #1f2937; color: #e2e8f0; border: 1px solid #1f2937; }
             QProgressBar::chunk { background: #22c55e; }
@@ -255,8 +280,91 @@ class PEAnalyzerGUI(QMainWindow):
             #ChipSecondary { background: #0b3d2c; color: #6ee7b7; }
             #ChipNeutral { background: #1f2937; color: #e2e8f0; }
             QTextEdit#PseudoView, QTextEdit#CfgView { font-family: Consolas, monospace; font-size: 12px; }
+            QTextEdit { selection-background-color: #1d4ed8; }
+            QScrollBar:vertical { background: #0c142a; width: 10px; }
+            QScrollBar::handle:vertical { background: #334155; border-radius: 4px; }
+            QScrollBar::handle:vertical:hover { background: #475569; }
+            QTreeWidget { border: 1px solid #1f2937; }
+            QTreeWidget::item:selected { background: #1d4ed8; color: #f8fafc; }
             """
         )
+
+    def _apply_shadows(self):
+        # soft shadows pentru panouri (fara blur)
+        effect = QGraphicsDropShadowEffect(self)
+        effect.setBlurRadius(18)
+        effect.setXOffset(0)
+        effect.setYOffset(3)
+        effect.setColor(Qt.black)
+        self.file_info.setGraphicsEffect(effect)
+        effect2 = QGraphicsDropShadowEffect(self)
+        effect2.setBlurRadius(18)
+        effect2.setXOffset(0)
+        effect2.setYOffset(3)
+        effect2.setColor(Qt.black)
+        self.tabs.setGraphicsEffect(effect2)
+
+    def _setup_tab_animation(self):
+        # Animatiile de tab dezactivate pentru a evita buguri
+        pass
+
+    def _build_rules_lab(self):
+        layout = QVBoxLayout()
+        self.rules_tab.setLayout(layout)
+        title = QLabel("Rules Lab - ajusteaza ponderile de scoring")
+        title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        title.setStyleSheet("padding: 6px 8px; border-radius: 8px; background: #111827;")
+        layout.addWidget(title)
+
+        form = QFormLayout()
+        self.spin_yara = QSpinBox(); self.spin_yara.setRange(0, 50)
+        self.spin_yara.setValue(int(self.analyzer.score_weights.get("yara_match", 10)))
+        self.spin_yara_max = QSpinBox(); self.spin_yara_max.setRange(0, 100)
+        self.spin_yara_max.setValue(int(self.analyzer.score_weights.get("yara_max", 40)))
+        self.spin_packer = QSpinBox(); self.spin_packer.setRange(0, 50)
+        self.spin_packer.setValue(int(self.analyzer.score_weights.get("packer", 10)))
+        self.spin_entropy_hi = QSpinBox(); self.spin_entropy_hi.setRange(0, 50)
+        self.spin_entropy_hi.setValue(int(self.analyzer.score_weights.get("entropy_high", 10)))
+        self.spin_entropy_med = QSpinBox(); self.spin_entropy_med.setRange(0, 50)
+        self.spin_entropy_med.setValue(int(self.analyzer.score_weights.get("entropy_medium", 5)))
+        self.spin_heur_flag = QSpinBox(); self.spin_heur_flag.setRange(0, 20)
+        self.spin_heur_flag.setValue(int(self.analyzer.score_weights.get("heuristic_flag", 5)))
+        self.spin_heur_max = QSpinBox(); self.spin_heur_max.setRange(0, 100)
+        self.spin_heur_max.setValue(int(self.analyzer.score_weights.get("heuristic_max", 25)))
+        self.spin_signed_bonus = QSpinBox(); self.spin_signed_bonus.setRange(0, 50)
+        self.spin_signed_bonus.setValue(int(self.analyzer.score_weights.get("signed_bonus", 15)))
+
+        form.addRow("YARA per match", self.spin_yara)
+        form.addRow("YARA max", self.spin_yara_max)
+        form.addRow("Packer", self.spin_packer)
+        form.addRow("Entropie mare", self.spin_entropy_hi)
+        form.addRow("Entropie medie", self.spin_entropy_med)
+        form.addRow("Heuristic flag", self.spin_heur_flag)
+        form.addRow("Heuristic max", self.spin_heur_max)
+        form.addRow("Bonus semnatura valida (scade scor)", self.spin_signed_bonus)
+        layout.addLayout(form)
+
+        apply_btn = QPushButton("Aplică ponderi")
+        apply_btn.setStyleSheet("padding:10px 14px;border-radius:10px;background:#2563eb;")
+        apply_btn.clicked.connect(self._apply_rules_lab)
+        layout.addWidget(apply_btn)
+        layout.addStretch()
+
+    def _apply_rules_lab(self):
+        self.analyzer.score_weights.update(
+            {
+                "yara_match": self.spin_yara.value(),
+                "yara_max": self.spin_yara_max.value(),
+                "packer": self.spin_packer.value(),
+                "entropy_high": self.spin_entropy_hi.value(),
+                "entropy_medium": self.spin_entropy_med.value(),
+                "heuristic_flag": self.spin_heur_flag.value(),
+                "heuristic_max": self.spin_heur_max.value(),
+                "signed_bonus": self.spin_signed_bonus.value(),
+            }
+        )
+        self.status.showMessage("Ponderi actualizate - rulează o nouă analiză pentru efect")
+        QMessageBox.information(self, "Rules Lab", "Ponderile au fost aplicate. Rulează din nou analiza pentru a vedea efectul.")
 
     # --- Event handlers ---
     def _apply_profile(self, idx: int):
@@ -355,58 +463,22 @@ class PEAnalyzerGUI(QMainWindow):
             QMessageBox.information(self, "Info", "Niciun rezultat de exportat.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Exporta raport HTML", "report.html", "HTML (*.html)"
+            self, "Exporta raport", "report.html", "HTML (*.html);;PDF (*.pdf)"
         )
         if not path:
             return
-        r = self.current_result
-        vt_ratio = r.vt_report.get("detection_ratio", "-") if r.vt_report else "-"
-        rows_sections = "".join(
-            f"<tr><td>{s.get('name','')}</td><td>{s.get('virtual_address','')}</td><td>{s.get('entropy','')}</td><td>{s.get('characteristics','')}</td></tr>"
-            for s in r.sections
-        )
-        rows_hashes = "".join(
-            f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in r.file_hash.items()
-        )
-        html = f"""
-        <html>
-        <head>
-            <meta charset="utf-8"/>
-            <style>
-            body {{ font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }}
-            h1, h2 {{ color: #a5b4fc; }}
-            table {{ width: 100%; border-collapse: collapse; margin: 10px 0; }}
-            th, td {{ border: 1px solid #1f2937; padding: 8px; }}
-            th {{ background: #1f2937; }}
-            .card {{ background: #111827; padding: 12px; border-radius: 8px; margin-bottom: 12px; }}
-            </style>
-        </head>
-        <body>
-            <h1>PE Static Analyzer - Raport</h1>
-            <div class="card">
-                <strong>Fisier:</strong> {r.file_path}<br/>
-                <strong>Risc:</strong> {r.risk_level} ({r.suspicion_score:.1f}/100)<br/>
-                <strong>VT:</strong> {vt_ratio}<br/>
-                <strong>Packer:</strong> {r.packer_detected or '-'}<br/>
-                <strong>Semnatura:</strong> {self._signature_status(r)}<br/>
-                <strong>Durata:</strong> {r.analysis_duration:.2f}s
-            </div>
-            <h2>Hash-uri</h2>
-            <table><tr><th>Tip</th><th>Valoare</th></tr>{rows_hashes}</table>
-            <h2>Sectiuni</h2>
-            <table><tr><th>Nume</th><th>VA</th><th>Entropie</th><th>Caracteristici</th></tr>{rows_sections}</table>
-        </body>
-        </html>
-        """
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(html)
-            QMessageBox.information(self, "Succes", f"Raport HTML salvat:\n{path}")
+            if path.lower().endswith(".pdf"):
+                report_generator.generate_pdf_report(self.current_result, path)
+            else:
+                report_generator.generate_html_report(self.current_result, path)
+            QMessageBox.information(self, "Succes", f"Raport salvat:\n{path}")
         except Exception as e:
-            QMessageBox.critical(self, "Eroare", f"Nu am putut salva HTML:\n{e}")
+            QMessageBox.critical(self, "Eroare", f"Nu am putut salva raportul:\n{e}")
 
     # --- Populate UI with results ---
     def show_results(self, r: AnalysisResult):
+        self._populate_findings(r)
         self._update_summary(r)
         self._update_file_info(r)
         self._populate_overview(r)
@@ -421,6 +493,7 @@ class PEAnalyzerGUI(QMainWindow):
         self._current_pseudo = r.pseudocode
         self._populate_pseudo(r.pseudocode)
         self._populate_cfg(r.func_graphs)
+        self._populate_anomalies(r.anomalies)
         self._populate_detections(r)
         self._populate_timeline(r.analysis_log)
         self._populate_errors(r.errors)
@@ -466,6 +539,44 @@ class PEAnalyzerGUI(QMainWindow):
             f"VirusTotal: {vt_ratio}",
         ]
         self.overview.setText("\n".join(info))
+
+    def _populate_findings(self, r: AnalysisResult):
+        vt_ratio = r.vt_report.get("detection_ratio", "-") if r.vt_report else "-"
+        packer = r.packer_detected or "-"
+        signed = r.signatures.get("verified") if r.signatures else False
+        signed_txt = "Valid" if signed else ("Unsigned" if r.signatures else "Unknown")
+        flags = r.heuristic_flags[:10]
+        yara_rules = [m.get("rule", "") for m in r.yara_matches[:10]]
+        charts = {}
+        try:
+            charts = report_generator._chart_images(r)  # base64 imgs
+        except Exception:
+            charts = {}
+        cards_html = f"""
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-family:'Segoe UI',sans-serif;">
+          <div style="flex:1;min-width:200px;background:#0f172a;padding:14px;border-radius:12px;border:1px solid #1f2937;">
+            <div style="color:#9ca3af;">Scor</div><div style="font-size:18px;font-weight:bold;">{r.suspicion_score:.1f} ({r.risk_level})</div>
+          </div>
+          <div style="flex:1;min-width:200px;background:#0f172a;padding:14px;border-radius:12px;border:1px solid #1f2937;">
+            <div style="color:#9ca3af;">VirusTotal</div><div style="font-size:18px;font-weight:bold;">{vt_ratio}</div>
+          </div>
+          <div style="flex:1;min-width:200px;background:#0f172a;padding:14px;border-radius:12px;border:1px solid #1f2937;">
+            <div style="color:#9ca3af;">Packer</div><div style="font-size:18px;font-weight:bold;">{packer}</div>
+          </div>
+          <div style="flex:1;min-width:200px;background:#0f172a;padding:14px;border-radius:12px;border:1px solid #1f2937;">
+            <div style="color:#9ca3af;">Semnatura</div><div style="font-size:18px;font-weight:bold;">{signed_txt}</div>
+          </div>
+        </div>
+        """
+        charts_html = "<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;'>"
+        if charts.get("entropy"):
+            charts_html += f"<div style='flex:1;min-width:300px;'><h4 style='margin:4px 0;'>Entropie</h4><img src='data:image/png;base64,{charts['entropy']}' style='max-width:100%;border:1px solid #1f2937;border-radius:8px;'/></div>"
+        if charts.get("vt"):
+            charts_html += f"<div style='flex:0 0 260px;'><h4 style='margin:4px 0;'>VirusTotal</h4><img src='data:image/png;base64,{charts['vt']}' style='max-width:100%;border:1px solid #1f2937;border-radius:8px;'/></div>"
+        charts_html += "</div>"
+        lists_html = "<h4 style='margin-top:12px;'>Heuristic flags</h4><ul>" + "".join(f"<li>{f}</li>" for f in flags) + "</ul>"
+        lists_html += "<h4>YARA</h4><ul>" + "".join(f"<li>{f}</li>" for f in yara_rules) + "</ul>"
+        self.findings_view.setHtml(cards_html + charts_html + lists_html)
 
     def _populate_hashes(self, hashes: Dict[str, Any]):
         self.hash_table.clear()
@@ -583,6 +694,16 @@ class PEAnalyzerGUI(QMainWindow):
             self.resources_table.setItem(i, 4, QTableWidgetItem(detail))
         self.resources_table.resizeColumnsToContents()
         self.resources_table.horizontalHeader().setStretchLastSection(True)
+
+    def _populate_anomalies(self, anomalies: List[str]):
+        self.anomalies_table.clear()
+        self.anomalies_table.setColumnCount(1)
+        self.anomalies_table.setHorizontalHeaderLabels(["Anomalie"])
+        self.anomalies_table.setRowCount(len(anomalies))
+        for i, a in enumerate(anomalies):
+            self.anomalies_table.setItem(i, 0, QTableWidgetItem(str(a)))
+        self.anomalies_table.resizeColumnsToContents()
+        self.anomalies_table.horizontalHeader().setStretchLastSection(True)
 
     def _populate_strings(self, strings: Dict[str, List[str]]):
         rows = []
@@ -755,7 +876,7 @@ class PEAnalyzerGUI(QMainWindow):
             return
         vw = self.graphviz_area.viewport().width()
         vh = self.graphviz_area.viewport().height()
-        pix = self._graph_pixmap.scaled(vw - 10, vh - 10, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pix = self._graph_pixmap.scaled(max(vw - 20, 200), max(vh - 20, 200), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.graphviz_label.setPixmap(pix)
 
     def resizeEvent(self, event):

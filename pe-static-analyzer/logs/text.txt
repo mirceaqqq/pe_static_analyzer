@@ -1,2 +1,87 @@
-Eroare in modulul pe_parser: 'PE_TYPE' object cannot be interpreted as an integer
-Eroare in modulul resource_analyzer: 'list' object has no attribute 'Key'
+025-11-29 17:33:59,898 - PluginManager - INFO - Modul inregistrat: pseudo_decompiler
+2025-11-29 17:33:59,898 - PluginManager - INFO - Modul inregistrat: ghidra_bridge
+2025-11-29 17:33:59,898 - PluginManager - INFO - Modul inregistrat: osint_lookup
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 301, in _animate_current_tab
+    effect = QGraphicsOpacityEffect(widget)
+             ^^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'QGraphicsOpacityEffect' is not defined
+PS C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer> python .\main.py gui
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 27, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 15, in main
+    from src.gui.main_window import main as gui_main
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\__init__.py", line 1, in <module>
+    from .main_window import PEAnalyzerGUI
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 38
+    from PySide6.QtGui import QFont, QPixmap
+IndentationError: unexpected indent
+PS C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer> python .\main.py gui
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 27, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 15, in main
+    from src.gui.main_window import main as gui_main
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\__init__.py", line 1, in <module>
+    from .main_window import PEAnalyzerGUI
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\gui\main_window.py", line 38
+    from PySide6.QtGui import QFont, QPixmap
+IndentationError: unexpected indent

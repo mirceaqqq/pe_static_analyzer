@@ -37,6 +37,7 @@ class AnalysisResult:
     resources: List[Dict[str, Any]] = field(default_factory=list)
     strings: Dict[str, List[str]] = field(default_factory=dict)
     analysis_log: List[Dict[str, Any]] = field(default_factory=list)
+    anomalies: List[str] = field(default_factory=list)
     disassembly: List[Dict[str, Any]] = field(default_factory=list)
     pseudocode: List[Dict[str, Any]] = field(default_factory=list)
     func_graphs: List[Dict[str, Any]] = field(default_factory=list)
@@ -76,6 +77,7 @@ class AnalysisResult:
             "disassembly": self.disassembly,
             "pseudocode": self.pseudocode,
             "func_graphs": self.func_graphs,
+            "anomalies": self.anomalies,
             "pseudocode": self.pseudocode,
             "yara_matches": self.yara_matches,
             "packer_detected": self.packer_detected,
