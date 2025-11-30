@@ -19,6 +19,14 @@ python main.py --help
 - Scanare recursiva: `python main.py scan-dir C:/path/to/folder`
 - Update automat reguli YARA (optional, implicit on) in watcher; configurabil in `config/config.yaml` (sectiunea `watcher`).
 
+## API + Frontend (React)
+- API FastAPI: `uvicorn api:app --reload --host 0.0.0.0 --port 8000`
+- Frontend React (Vite) in `frontend/`:
+  - `cd frontend`
+  - `npm install`
+  - `npm run dev` (implicit VITE_API_URL=http://localhost:8000; seteaza in .env)
+- Functionalitati UI: upload & analyze, analyze path local, scan folder, YARA sync, carduri risc/score, rezumat rezultat.
+
 ## Autostart la boot (Windows)
 - Script dedicat: `scripts/install_watcher_task.ps1` (ruleaza ca Administrator).
 - Creeaza un task programat care porneste watcher-ul la boot sub contul SYSTEM.

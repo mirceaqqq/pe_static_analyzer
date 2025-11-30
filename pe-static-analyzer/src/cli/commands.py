@@ -15,9 +15,9 @@ import argparse
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import List, Optional
-import threading
 
 try:
     from rich.console import Console
@@ -30,7 +30,6 @@ except ImportError:
 
 from src.core.analyzer import AnalysisResult, PEStaticAnalyzer
 from src.modules import create_default_modules
-from src.utils.quarantine import quarantine_if_needed
 from src.utils.yara_sync import (
     DEFAULT_BRANCH,
     DEFAULT_FOLDERS,

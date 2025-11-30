@@ -1,0 +1,46 @@
+{
+  "name": "pe-analyzer-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron electron/main.js",
+    "electron:prod": "set NODE_ENV=production&& electron electron/main.js",
+    "dist:ui": "vite build",
+    "dist:win": "npm run dist:ui && electron-builder --win portable",
+    "dist:nsis": "npm run dist:ui && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.2.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.pestaticanalyzer.app",
+    "productName": "PE Static Analyzer",
+    "files": [
+      "dist/**",
+      "electron/main.js",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "electron/resources"
+    },
+    "asar": true,
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}
