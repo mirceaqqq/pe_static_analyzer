@@ -17,6 +17,7 @@ logs/*.log
 temp/*
 reports/*
 samples/malicious/*
+yara_rules/remote/
 
 # OS
 .DS_Store
