@@ -1,3 +1,19 @@
 analyzer:
   name: "PE Static Analyzer"
   version: "1.0.0"
+
+# Politica de carantina: muta fisierele suspecte intr-un folder izolat
+quarantine:
+  enabled: true
+  folder: "quarantine"
+  risk_levels: ["HIGH", "CRITICAL"]
+  score_min: 60
+  vt_malicious_min: 1
+  delete_original: true
+
+# Watcher defaults (real-time AV)
+watcher:
+  paths: ["C:/Users"]
+  recursive: true
+  yara_auto_update: true
+  update_interval_minutes: 60

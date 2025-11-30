@@ -6,6 +6,14 @@ DEFAULT_CONFIG_PATH = Path("config/config.yaml")
 
 DEFAULTS = {
     "weights": {},
+    "quarantine": {
+        "enabled": True,
+        "risk_levels": ["HIGH", "CRITICAL"],
+        "score_min": 60,
+        "vt_malicious_min": 1,
+        "delete_original": True,
+        "folder": "quarantine",
+    },
 }
 
 

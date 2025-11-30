@@ -4,6 +4,8 @@ PE Static Analyzer - CLI interface powered by argparse and rich.
 Commands:
   - analyze: analyze a single executable
   - batch: analyze multiple executables
+  - scan-dir: recursively scan a folder
+  - watch: start a real-time watcher (on-create/on-modify)
   - list-modules: list registered modules
   - stats: show framework statistics
   - yara-sync: download YARA rules from GitHub and recompile them locally
@@ -15,6 +17,7 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Optional
+import threading
 
 try:
     from rich.console import Console
@@ -27,6 +30,7 @@ except ImportError:
 
 from src.core.analyzer import AnalysisResult, PEStaticAnalyzer
 from src.modules import create_default_modules
+from src.utils.quarantine import quarantine_if_needed
 from src.utils.yara_sync import (
     DEFAULT_BRANCH,
     DEFAULT_FOLDERS,
@@ -34,6 +38,7 @@ from src.utils.yara_sync import (
     DEFAULT_REPO,
     sync_yara_rules,
 )
+from src.av.watcher import start_watch
 
 console = Console()
 
@@ -277,6 +282,54 @@ class PEAnalyzerCLI:
         except Exception as exc:  # noqa: BLE001
             console.print(f"[red]Eroare salvare raport:[/red] {exc}")
 
+    # -------------- AV helpers -------------- #
+    def scan_directory(self, directory: str, recursive: bool = True):
+        """Recursively scan a directory."""
+        directory_path = Path(directory)
+        if not directory_path.is_dir():
+            console.print(f"[red]Director invalid:[/red] {directory}")
+            return
+
+        files = [p for p in directory_path.rglob("*") if p.is_file()] if recursive else list(directory_path.iterdir())
+        console.print(f"[cyan]Scanare {len(files)} fisiere din {directory_path}[/cyan]")
+
+        for path in files:
+            try:
+                res = self.analyzer.analyze_file(str(path))
+                console.print(f"[green]OK[/green] {path} -> {res.risk_level} ({res.suspicion_score:.1f})")
+            except Exception as exc:  # noqa: BLE001
+                console.print(f"[red]Eroare {path}:[/red] {exc}")
+
+    def watch_paths(self, paths: List[str], recursive: bool = True, yara_autoupdate: bool = True, interval_min: int = 60):
+        """Start real-time watcher; blocks the thread."""
+        console.print(f"[cyan]Pornire watcher pe {paths}[/cyan]")
+
+        def _auto_update():
+            while True:
+                try:
+                    saved = sync_yara_rules()
+                    if saved:
+                        module = self.analyzer.plugin_manager.get_module("yara_scanner")
+                        if module and hasattr(module, "reload_rules"):
+                            module.reload_rules()
+                        console.print(f"[green]YARA update[/green]: +{saved} fisiere noi")
+                except Exception as exc:  # noqa: BLE001
+                    console.print(f"[yellow]YARA update esuat:[/yellow] {exc}")
+                finally:
+                    import time
+
+                    time.sleep(interval_min * 60)
+
+        if yara_autoupdate:
+            threading.Thread(target=_auto_update, daemon=True).start()
+
+        start_watch(
+            paths=paths,
+            analyzer=self.analyzer,
+            recursive=recursive,
+            on_result=lambda r: console.print(f"[magenta]WATCH[/magenta] {Path(r.file_path).name} -> {r.risk_level}"),
+        )
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -303,6 +356,16 @@ Exemple de utilizare:
     batch_parser = subparsers.add_parser("batch", help="Analiza batch multiple fisiere")
     batch_parser.add_argument("files", nargs="+", help="Liste fisiere")
     batch_parser.add_argument("-o", "--output-dir", help="Director rapoarte")
+
+    scan_dir_parser = subparsers.add_parser("scan-dir", help="Scaneaza recursiv un director")
+    scan_dir_parser.add_argument("directory", help="Director de scanat")
+    scan_dir_parser.add_argument("--no-recursive", dest="recursive", action="store_false", help="Nu scana subfolderele")
+
+    watch_parser = subparsers.add_parser("watch", help="Monitorizare real-time (on-create/on-modify)")
+    watch_parser.add_argument("paths", nargs="+", help="Cai de monitorizat")
+    watch_parser.add_argument("--no-recursive", dest="recursive", action="store_false", help="Nu urmari recursiv")
+    watch_parser.add_argument("--no-yara-update", dest="yara_autoupdate", action="store_false", help="Dezactiveaza update automat YARA")
+    watch_parser.add_argument("--interval-min", type=int, default=60, help="Interval update YARA (minute)")
 
     subparsers.add_parser("list-modules", help="Listeaza module disponibile")
     subparsers.add_parser("stats", help="Afiseaza statistici")
@@ -355,6 +418,15 @@ def main():
                 folders=args.folders,
                 target_dir=Path(args.target_dir),
                 token=args.token or "",
+            )
+        elif args.command == "scan-dir":
+            cli.scan_directory(args.directory, recursive=getattr(args, "recursive", True))
+        elif args.command == "watch":
+            cli.watch_paths(
+                paths=args.paths,
+                recursive=getattr(args, "recursive", True),
+                yara_autoupdate=getattr(args, "yara_autoupdate", True),
+                interval_min=getattr(args, "interval_min", 60),
             )
     except KeyboardInterrupt:
         console.print("\n[yellow]Intrerupt de utilizator[/yellow]")

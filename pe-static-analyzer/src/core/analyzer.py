@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 from src.core.config import load_config
+from src.utils.quarantine import quarantine_if_needed
 
 # Configure logging
 logging.basicConfig(
@@ -43,6 +44,8 @@ class AnalysisResult:
     pseudocode: List[Dict[str, Any]] = field(default_factory=list)
     func_graphs: List[Dict[str, Any]] = field(default_factory=list)
     scoring_breakdown: List[str] = field(default_factory=list)
+    quarantined: bool = False
+    quarantine_path: Optional[str] = None
 
     # Detections
     yara_matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -89,6 +92,8 @@ class AnalysisResult:
             "analysis_duration": self.analysis_duration,
             "modules_used": self.modules_used,
             "errors": self.errors,
+            "quarantined": self.quarantined,
+            "quarantine_path": self.quarantine_path,
         }
 
 
@@ -210,6 +215,10 @@ class PEStaticAnalyzer:
         # Scoring & classification
         result.suspicion_score = self._calculate_suspicion_score(result)
         result.risk_level = self._classify_risk(result.suspicion_score)
+
+        # Quarantine if policy requires it
+        quarantine_cfg = self.config.get("quarantine", {})
+        quarantine_if_needed(file_path_obj, result, quarantine_cfg)
 
         # Duration
         end_time = datetime.now()

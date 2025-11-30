@@ -37,7 +37,9 @@ def _fetch_dir(owner: str, repo: str, path: str, branch: str, target_dir: Path, 
     for entry in _walk_repo(owner, repo, path, branch, headers):
         if entry.get("type") == "file" and entry["name"].lower().endswith((".yar", ".yara")):
             data = requests.get(entry["download_url"], headers=headers, timeout=30).content
-            out = target_dir / entry["name"]
+            rel_path = Path(entry["path"])  # preserve folder structure
+            out = target_dir / rel_path
+            out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(data)
 
 
@@ -55,9 +57,9 @@ def sync_yara_rules(
     count = 0
     for folder in folders:
         try:
-            before = len(list(target_dir.glob("*.yar"))) + len(list(target_dir.glob("*.yara")))
+            before = len(list(target_dir.rglob("*.yar"))) + len(list(target_dir.rglob("*.yara")))
             _fetch_dir(owner, repo, folder, branch, target_dir, token)
-            after = len(list(target_dir.glob("*.yar"))) + len(list(target_dir.glob("*.yara")))
+            after = len(list(target_dir.rglob("*.yar"))) + len(list(target_dir.rglob("*.yara")))
             count += max(0, after - before)
         except Exception:
             continue

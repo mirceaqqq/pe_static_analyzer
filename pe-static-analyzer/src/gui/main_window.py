@@ -9,6 +9,7 @@ import base64
 import os
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import threading
 
 
 def _bootstrap_qt():
@@ -78,6 +79,8 @@ from src.modules import create_default_modules
 from src.database.repository import AnalysisRepository
 from src.reporting import report_generator
 from src.gui.style import BASE_QSS
+from src.utils.yara_sync import sync_yara_rules
+from src.av.watcher import start_watch_async, stop_watch
 
 
 class AnalyzerThread(QThread):
@@ -98,6 +101,36 @@ class AnalyzerThread(QThread):
             result = self.analyzer.analyze_file(self.file_path)
             self.progress.emit("Analiza finalizata")
             self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class DirectoryScanThread(QThread):
+    """Scan a directory in background."""
+
+    progress = Signal(str)
+    finished = Signal(list)
+    error = Signal(str)
+
+    def __init__(self, analyzer: PEStaticAnalyzer, directory: str, recursive: bool = True):
+        super().__init__()
+        self.analyzer = analyzer
+        self.directory = directory
+        self.recursive = recursive
+
+    def run(self):
+        try:
+            dir_path = Path(self.directory)
+            if not dir_path.is_dir():
+                self.error.emit(f"Director invalid: {self.directory}")
+                return
+            files = [p for p in dir_path.rglob("*") if p.is_file()] if self.recursive else list(dir_path.iterdir())
+            results = []
+            for idx, path in enumerate(files, 1):
+                self.progress.emit(f"Scanez {idx}/{len(files)}: {path.name}")
+                res = self.analyzer.analyze_file(str(path))
+                results.append(res)
+            self.finished.emit(results)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -283,6 +316,11 @@ class PEAnalyzerGUI(QMainWindow):
         self.tabs.addTab(self.errors_tab, "Erori")
         self.tabs.addTab(self.json_raw, "JSON")
 
+        # AV Control tab
+        self.av_tab = QWidget()
+        self._build_av_tab()
+        self.tabs.addTab(self.av_tab, "AV Control")
+
         # Status bar
         self.status = self.statusBar()
         self.progress = QProgressBar()
@@ -382,6 +420,45 @@ class PEAnalyzerGUI(QMainWindow):
         )
         self.status.showMessage("Ponderi actualizate - ruleaza o noua analiza pentru efect")
         QMessageBox.information(self, "Rules Lab", "Ponderile au fost aplicate. Ruleaza din nou analiza pentru a vedea efectul.")
+
+    def _build_av_tab(self):
+        layout = QVBoxLayout()
+        self.av_tab.setLayout(layout)
+
+        title = QLabel("AV Control - watcher, scan-folder, YARA update")
+        title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        title.setStyleSheet("padding: 6px 8px; border-radius: 8px; background: #111827;")
+        layout.addWidget(title)
+
+        row1 = QHBoxLayout()
+        btn_scan = QPushButton("Scaneaza folder")
+        btn_scan.clicked.connect(self._scan_folder_dialog)
+        self.chk_recursive = QPushButton("Recursiv ON")
+        self.chk_recursive.setCheckable(True)
+        self.chk_recursive.setChecked(True)
+        self.chk_recursive.setStyleSheet("padding:8px; border-radius:8px; background:#2563eb;")
+        row1.addWidget(btn_scan)
+        row1.addWidget(self.chk_recursive)
+        row1.addStretch()
+        layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        btn_start_watch = QPushButton("Porneste watcher")
+        btn_stop_watch = QPushButton("Opreste watcher")
+        btn_start_watch.clicked.connect(self._start_watcher)
+        btn_stop_watch.clicked.connect(self._stop_watcher)
+        btn_yara_sync = QPushButton("Sync YARA acum")
+        btn_yara_sync.clicked.connect(self._sync_yara_now)
+        row2.addWidget(btn_start_watch)
+        row2.addWidget(btn_stop_watch)
+        row2.addWidget(btn_yara_sync)
+        row2.addStretch()
+        layout.addLayout(row2)
+
+        self.av_status = QLabel("Status: idle")
+        self.av_status.setStyleSheet("padding:6px; border-radius:8px; background:#111827;")
+        layout.addWidget(self.av_status)
+        layout.addStretch()
 
     # --- Event handlers ---
     def _apply_profile(self, idx: int):
@@ -496,6 +573,67 @@ class PEAnalyzerGUI(QMainWindow):
             self.status.showMessage(f"Raport PDF generat: {fname}")
         except Exception as e:
             self.status.showMessage(f"PDF auto esuat: {e}")
+
+    def _scan_folder_dialog(self):
+        directory = QFileDialog.getExistingDirectory(self, "Alege folder pentru scanare", "")
+        if not directory:
+            return
+        recursive = self.chk_recursive.isChecked()
+        self.av_status.setText(f"Status: scanare {directory} ...")
+        self.progress.setVisible(True)
+        self.progress.setRange(0, 0)
+        self.dir_thread = DirectoryScanThread(self.analyzer, directory, recursive=recursive)
+        self.dir_thread.progress.connect(self.status.showMessage)
+        self.dir_thread.error.connect(lambda msg: QMessageBox.critical(self, "Scanare folder", msg))
+        self.dir_thread.finished.connect(self._on_dir_scan_complete)
+        self.dir_thread.start()
+
+    def _on_dir_scan_complete(self, results: List[AnalysisResult]):
+        self.progress.setVisible(False)
+        self.progress.setRange(0, 100)
+        self.av_status.setText(f"Status: scanare terminata ({len(results)} fisiere)")
+        if results:
+            last = results[-1]
+            self.current_result = last
+            self.show_results(last)
+
+    def _sync_yara_now(self):
+        try:
+            saved = sync_yara_rules()
+            mod = self.analyzer.plugin_manager.get_module("yara_scanner")
+            if mod and hasattr(mod, "reload_rules"):
+                mod.reload_rules()
+            QMessageBox.information(self, "YARA", f"Sync completat. Fisiere noi: {saved}")
+            self.av_status.setText(f"Status: YARA sync ok (+{saved})")
+        except Exception as e:
+            QMessageBox.warning(self, "YARA", f"Eroare sync: {e}")
+            self.av_status.setText("Status: YARA sync esuat")
+
+    def _start_watcher(self):
+        if hasattr(self, "_watcher_observer") and self._watcher_observer:
+            QMessageBox.information(self, "Watcher", "Watcher deja pornit.")
+            return
+        paths = [Path.home()]
+        try:
+            self._watcher_observer = start_watch_async(
+                paths=[str(p) for p in paths],
+                analyzer=self.analyzer,
+                recursive=True,
+                on_result=lambda r: self.status.showMessage(f"WATCH: {Path(r.file_path).name} -> {r.risk_level}"),
+            )
+            self.av_status.setText(f"Status: watcher ON ({', '.join(str(p) for p in paths)})")
+        except Exception as e:
+            QMessageBox.critical(self, "Watcher", f"Nu am putut porni watcher: {e}")
+            self.av_status.setText("Status: watcher OFF")
+
+    def _stop_watcher(self):
+        if hasattr(self, "_watcher_observer") and self._watcher_observer:
+            stop_watch(self._watcher_observer)
+            self._watcher_observer = None
+            self.av_status.setText("Status: watcher OFF")
+            QMessageBox.information(self, "Watcher", "Watcher oprit.")
+        else:
+            QMessageBox.information(self, "Watcher", "Nu exista watcher activ.")
 
     def export_report(self):
         """Save current analysis as JSON."""

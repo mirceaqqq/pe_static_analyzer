@@ -1,6 +1,34 @@
-Install PySide6: pip install PySide6
-PS C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer> python .\main.py gui
-PySide6 import failed: cannot import name 'QSplashScreen' from 'PySide6.QtGui' (C:\Users\adminfull\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\PySide6\QtGui.pyd)
-PyQt5 import failed: No module named 'PyQt5'
-Install PySide6: pip install PySide6
+> python .\main.py watch
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 27, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 21, in main
+    from src.cli import commands
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\cli\commands.py", line 283
+    console.print(f"[red]Eroare salvare raport:[/red] {exc}")
+    ^^^^^^^
+IndentationError: expected an indented block after 'except' statement on line 282
+PS C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer> python .\main.py
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 27, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 21, in main
+    from src.cli import commands
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\cli\commands.py", line 283
+    console.print(f"[red]Eroare salvare raport:[/red] {exc}")
+    ^^^^^^^
+IndentationError: expected an indented block after 'except' statement on line 282
+PS C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer> python .\main.py -help
+Traceback (most recent call last):
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 27, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\main.py", line 21, in main
+    from src.cli import commands
+  File "C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer\src\cli\commands.py", line 283
+    console.print(f"[red]Eroare salvare raport:[/red] {exc}")
+    ^^^^^^^
+IndentationError: expected an indented block after 'except' statement on line 282
 PS C:\Users\adminfull\pe-static-analyzer\pe-static-analyzer>
