@@ -1,0 +1,2 @@
+Eroare in modulul pe_parser: 'PE_TYPE' object cannot be interpreted as an integer
+Eroare in modulul resource_analyzer: 'list' object has no attribute 'Key'

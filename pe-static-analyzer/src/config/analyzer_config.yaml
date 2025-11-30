@@ -1,0 +1,89 @@
+analyzer:
+  name: "PE Static Analyzer"
+  version: "1.0.0"
+  author: "Ivescu Mircea"
+  organization: "Academia Tehnică Militară Ferdinand I"
+  description: >
+    Framework modular pentru analiza statică a fișierelor Portable Executable (PE),
+    capabil să calculeze hash-uri, analizeze entropia secțiunilor, detecteze packere,
+    semnături digitale și reguli YARA, oferind rapoarte în format JSON și HTML.
+  database_path: "pe_analyzer.db"
+  default_output_dir: "reports"
+  logging_dir: "logs"
+
+modules:
+  hash_calculator:
+    enabled: true
+    algorithms: ["md5", "sha1", "sha256"]
+
+  pe_parser:
+    enabled: true
+    extract_sections: true
+    extract_imports: true
+
+  entropy_analyzer:
+    enabled: true
+    threshold_high: 7.0
+    threshold_suspicious: 6.5
+
+  import_analyzer:
+    enabled: true
+    suspicious_keywords:
+      - VirtualAlloc
+      - CreateProcess
+      - LoadLibrary
+      - WriteProcessMemory
+      - GetProcAddress
+
+  section_analyzer:
+    enabled: true
+    check_rw_executable: true
+
+  signature_analyzer:
+    enabled: true
+    verify_trusted: false
+
+  packer_detector:
+    enabled: true
+    packer_list: ["UPX", "ASPack", "PECompact", "FSG"]
+
+  yara_scanner:
+    enabled: true
+    yara_rules_path: "yara_rules/"
+    max_matches: 50
+
+scoring:
+  entropy_weight: 0.3
+  yara_weight: 0.4
+  imports_weight: 0.2
+  packer_weight: 0.1
+  thresholds:
+    low: 20
+    medium: 50
+    high: 75
+    critical: 90
+
+reporting:
+  default_format: "json"
+  html_template: "src/reporting/templates/report.html"
+  include_hashes: true
+  include_sections: true
+  include_imports: true
+  include_yara_matches: true
+  include_signatures: true
+
+paths:
+  benign_samples: "tests/samples/benign"
+  malicious_samples: "tests/samples/malicious"
+  temp_dir: "temp"
+  yara_rules:
+    - "yara_rules/malware"
+    - "yara_rules/packers"
+    - "yara_rules/suspicious"
+    - "yara_rules/apt"
+
+ui:
+  theme: "dark"
+  font_family: "Consolas"
+  font_size: 11
+  enable_drag_drop: true

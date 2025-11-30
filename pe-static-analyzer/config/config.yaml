@@ -1,0 +1,3 @@
+analyzer:
+  name: "PE Static Analyzer"
+  version: "1.0.0"

@@ -1,0 +1,74 @@
+{
+  "rules": [
+    {
+      "id": "E001",
+      "category": "Entropy",
+      "description": "Entropie ridicată detectată în secțiune",
+      "condition": "entropy > 7.0",
+      "score": 20,
+      "severity": "MEDIUM"
+    },
+    {
+      "id": "Y001",
+      "category": "YARA",
+      "description": "Match YARA pentru semnătură malware cunoscută",
+      "condition": "yara_matches > 0",
+      "score": 30,
+      "severity": "HIGH"
+    },
+    {
+      "id": "I001",
+      "category": "Imports",
+      "description": "Importuri suspicioase detectate",
+      "condition": "suspicious_imports > 0",
+      "score": 25,
+      "severity": "HIGH"
+    },
+    {
+      "id": "P001",
+      "category": "Packer",
+      "description": "Packer cunoscut detectat",
+      "condition": "packer_detected == True",
+      "score": 15,
+      "severity": "MEDIUM"
+    },
+    {
+      "id": "S001",
+      "category": "Signature",
+      "description": "Semnătură digitală lipsă sau invalidă",
+      "condition": "signature_valid == False",
+      "score": 10,
+      "severity": "LOW"
+    },
+    {
+      "id": "H001",
+      "category": "Heuristic",
+      "description": "Funcții de injecție proces detectate",
+      "condition": "heuristics_process_injection == True",
+      "score": 20,
+      "severity": "HIGH"
+    },
+    {
+      "id": "C001",
+      "category": "Composite",
+      "description": "Comportament cumulativ suspect (YARA + Entropie + Packer)",
+      "condition": "yara_matches > 0 and entropy > 7.0 and packer_detected == True",
+      "score": 50,
+      "severity": "CRITICAL"
+    }
+  ],
+  "global_weights": {
+    "entropy": 0.3,
+    "imports": 0.2,
+    "yara": 0.3,
+    "packer": 0.1,
+    "signature": 0.1
+  },
+  "risk_levels": {
+    "LOW": [0, 25],
+    "MEDIUM": [25, 50],
+    "HIGH": [50, 75],
+    "CRITICAL": [75, 100]
+  },
+  "scoring_formula": "Σ(rule_score × weight_factor) × normalization_constant"
+}
