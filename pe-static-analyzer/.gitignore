@@ -18,6 +18,11 @@ temp/*
 reports/*
 samples/malicious/*
 yara_rules/remote/
+frontend/node_modules/
+frontend/dist/
+frontend/out/
+frontend/release/
+frontend/.vite/
 
 # OS
 .DS_Store
